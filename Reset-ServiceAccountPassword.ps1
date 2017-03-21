@@ -1,9 +1,12 @@
 <#
+Final goal: Ability to reset all service account passwords, on all servers, for all services. New passwords and account information will
+be based off of information from KeePass Database. This script could potentially be adjusted to work with a different software or a different input method, if preferred.
+
 Current goals: 
 - Integrate Get-NonStandardServiceAccounts script output (Not CSV output but, adjust for only $variable output).
 - Pass/adjust needed variables along to Set-ServiceAccountPassword function. There are MANY that are not going to/coming from the right place.         
 - Clear any variables containing secure information in cleartext after final conversion immediately after new passwords have been set.
-- Complete all documentation
+- Complete all documentation.
 - May need to change KeePass location to network share when complete.
 
 Achieved goals: 
