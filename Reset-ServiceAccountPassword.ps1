@@ -296,7 +296,9 @@ Until($CorrectDBPass -eq $True)
 }
 
 $Data = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
-$Data 
+
+#Used for testing output purposes (uncomment if you want to ensure you're pulling the proper data)
+#$Data 
 
 function Set-ServiceAccountPassword {
 
