@@ -26,7 +26,7 @@ function Get-ServiceAccounts {
 .SYNOPOSIS
 Change values of switches (if desired) and change default parent OU on line 62.
 
-Add appropriate switch to line 150 if you wish to change domain or OU (defaults to .MIL domain, 05_Servers OU)
+Add appropriate switch to line 150 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com OU)
 #>
 
 Param(
@@ -82,7 +82,7 @@ if(!($S.IsPresent -or $K.IsPresent -or $W.IsPresent -or $H.IsPresent)){
     
     if([string]::IsNullOrWhiteSpace($Names)) { 
         #Set $SearchOU to parent server OU
-        $SearchOU = "OU=Computers,DC=acme,DC=coms"
+        $SearchOU = "OU=Computers,DC=acme,DC=com"
     }
 }
 
