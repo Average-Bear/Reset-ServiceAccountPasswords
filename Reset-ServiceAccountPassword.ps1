@@ -3,15 +3,17 @@ Final goal: Ability to reset all service account passwords, on all servers, for 
 be based off of information from KeePass Database. This script could potentially be adjusted to work with a different software or a different input method, if preferred.
 
 Current goals: 
-- Integrate Get-NonStandardServiceAccounts script output (Not CSV output but, adjust for only $variable output).
-- Pass/adjust needed variables along to Set-ServiceAccountPassword function. There are MANY that are not going to/coming from the right place.         
-- Clear any variables containing secure information in cleartext after final conversion immediately after new passwords have been set.
+      
+- Clear any variables containing secure information in cleartext after new passwords have been set.
 - Complete all documentation.
-- May need to change KeePass location to network share when complete.
+- Search for KeePass.exe location, then feed the filepath instead of hardcoding a location.
 
 Achieved goals: 
 - Access KeePass Master DB and retrieve all accounts information as a secure string.
 - Bring secure string back to Binary, then to string again because change method doesn't accept Secure Strings.
+- Integrated Get-NonStandardServiceAccounts output. 
+- Used Get-NonStandarServiceAccounts information from server and passed it into the account search within the KeePass Database.
+- Included a Do{ While{}} loop to handle mistyped Master DB Password.
 
 Notes: This script is in beta testing at the current moment. Proper variables aren't set within several different functions; as I am 
 testing individual functionality before integrating them with each other.
@@ -19,125 +21,282 @@ testing individual functionality before integrating them with each other.
 Feel free to add or adjust anything that you think could be helpful but, please review the current goals before implementing changes and submitting to me. 
 #>
 
-param(
+function Get-ServiceAccounts {
+<#
+.SYNOPOSIS
+Change values of switches (if desired) and change default parent OU on line 62.
+
+Add appropriate switch to line 150 if you wish to change domain or OU (defaults to .MIL domain, 05_Servers OU)
+#>
+
+Param(
+[parameter(ValueFromPipeline=$true)]
+    [String[]]$Names,
+    [Switch]$S,
+    [Switch]$K,
+    [Switch]$W,
+    [Switch]$H,
+    [Switch]$ConvertToHTML
+)
+
+Try {
+
+    Import-Module ActiveDirectory -ErrorAction Stop
+}
+
+Catch {
+
+    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module is required to run this script. Please, install RSAT and configure this server properly."
+    Break
+}
+
+#Format today's date
+$LogDate = (Get-Date -format yyyyMMdd)
+
+#S server OU switch
+if($S) {
+
+    $SearchOU += "OU=S,OU=Computers,DC=acme,DC=com"
+}
+
+#K server OU switch
+if($K) {
+
+    $SearchOU += "OU=K,OU=Computers,DC=acme,DC=com"
+}
+
+#W server OU switch
+if($W) {
+
+    $SearchOU += "OU=W,OU=Computers,DC=acme,DC=com" 
+}
+
+#H server OU switch
+if($H) {
+
+    $SearchOU += "OU=H,OU=Computers,DC=acme,DC=com"
+}
+
+#If no OU switches are present, use parent 05_Servers OU for array
+if(!($S.IsPresent -or $K.IsPresent -or $W.IsPresent -or $H.IsPresent)){
+    
+    if([string]::IsNullOrWhiteSpace($Names)) { 
+        #Set $SearchOU to parent server OU
+        $SearchOU = "OU=Computers,DC=acme,DC=coms"
+    }
+}
+
+Write-Host "`nRetrieving server information from:"
+
+if([String]::IsNullOrWhiteSpace($Names)) {
+    
+    #Process each item in $SearchOU
+    foreach($OU in $SearchOU) {
+
+        Write-Progress -Activity "Retrieving information from selected servers..." -Status ("Percent Complete:" + "{0:N0}" -f ((($i++) / $SearchOU.count) * 100) + "%") -CurrentOperation "Processing $($OU)..." -PercentComplete ((($j++) / $SearchOU.count) * 100)
+    
+        #OU can't be $null or whitespace
+        if(!([string]::IsNullOrWhiteSpace($OU))) {
+    
+            #Retrieve all server names from $OU
+            $Names = (Get-ADComputer -SearchBase $OU -SearchScope Subtree -Filter *).Name
+
+            #Add server names to $ComputerList Array
+            $ComputerList += $Names
+        }
+    }
+}
+
+else {
+
+    $ComputerList += $Names
+}
+
+foreach ($C in $ComputerList) {
+
+    Write-Host "$C"
+}
+
+$i=0
+$j=0
+
+#Create function
+function Get-Accounts {
+
+    #Process each item in $ComputerList
+    foreach ($Computer in $ComputerList) {
+        
+        #Progress bar/completion percentage of all items in $ComputerList
+        Write-Progress -Activity "Creating job for $Computer to query Local Services..." -Status ("Percent Complete:" + "{0:N0}" -f ((($i++) / $ComputerList.count) * 100) + "%") -CurrentOperation "Processing $($Computer)..." -PercentComplete ((($j++) / $ComputerList.count) * 100)
+
+        #Only continue if able to ping
+        if(Test-Connection -Quiet -Count 1 $Computer) {
+
+            #Creat job to run parallel
+            Start-Job -ScriptBlock { param($Computer)
+
+                <# Query each computer
+                Note: Get-CIMInstance -ComputerName $Computer -ClassName Win32_Service -ErrorAction SilentlyContinue 
+                won't currently work with out of date PowerShell on some servers #>
+                $WMI = (Get-WmiObject -ComputerName $Computer -Class Win32_Service -ErrorAction SilentlyContinue | 
+
+                #Filter out the standard service accounts
+                Where-Object -FilterScript {$_.StartName -ne "LocalSystem"}                  |
+                Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"}  | 
+                Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"}    |
+                Where-Object -FilterScript {$_.StartName -ne "Local System"}                 |
+                Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"}   |
+                Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} |
+                Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\MSSQL*"} |
+                Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
+
+                    foreach($Obj in $WMI) {
+                        
+                        [pscustomobject] @{
+
+                            StartName    = $Obj.StartName
+                            Name         = $Obj.Name
+                            DisplayName  = $Obj.DisplayName
+                            StartMode    = $Obj.StartMode
+                            SystemName   = $Obj.SystemName
+                        }
+                    }
+                
+            } -ArgumentList $Computer
+        }
+    }
+}
+
+    Get-Accounts | Wait-Job | Receive-Job
+} 
+
+$FoundAccounts = Get-ServiceAccounts -School
 
 $PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
-)
+
 #Load all KeePass .NET binaries in the folder
 (Get-ChildItem -Recurse $PathToKeePassFolder| Where {($_.Extension -EQ ".dll") -or ($_.Extension -eq ".exe")} | ForEach { $AssemblyName=$_.FullName; Try {[Reflection.Assembly]::LoadFile($AssemblyName) } Catch{ }} ) | Out-Null
-
-
 
 function Find-PasswordInKeePassDBUsingPassword {
 
     [CmdletBinding()]
     [OutputType([String[]])]
+
     Param(
-
+        
         #KeePass Database Path
-        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx",
-
-        #KeePass Database Master Password; secure-string            
-        $MasterPasswordDB = (Read-Host -Prompt "KeePass Master Password" -AsSecureString )       
+        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"
+     
     )
 
-    #Integrate output from Get-NonStandardServiceAccounts (NO CSV; output only)
-    $FoundAccounts = #
+Do {
 
-    #Service Account Names
-    $ServiceAccount = Split-Path -Path $FoundAccounts.StartName -Leaf
+    While($True) {
+
+        #KeePass Database Master Password; secure-string            
+        $MasterPasswordDB = (Read-Host -Prompt "KeePass Master Password" -AsSecureString)
+
+        #Service Account Names
+        $ServiceAccounts = Split-Path -Path $FoundAccounts.StartName -Leaf
     
-    #Pass Secure String to BinaryString
-    $BSTR = [system.runtime.interopservices.marshal]::SecureStringToBSTR($MasterPasswordDB)
+        #Pass Secure String to BinaryString
+        $BSTR = [system.runtime.interopservices.marshal]::SecureStringToBSTR($MasterPasswordDB)
 
-    #Pass Binary String
-    $Password = [system.runtime.interopservices.marshal]::PtrToStringAuto($BSTR)
+        #Pass Binary String
+        $Password = [system.runtime.interopservices.marshal]::PtrToStringAuto($BSTR)
 
-    #Empty array for later use in script
-    $CurrentAccountData=@()
+        #Empty array for later use in script
+        $CurrentAccountData=@()
 
-    Try {
+        Try {
 
-        foreach($Account in $ServiceAccount) {
+            foreach($Account in $ServiceAccounts) {
 
-            #Create KeyPass object
-            $PwDatabase = New-Object KeePassLib.PwDatabase
+                #Create KeyPass object
+                $PwDatabase = New-Object KeePassLib.PwDatabase
 
-            #Create composite key
-            $m_pKey = New-Object KeePassLib.Keys.CompositeKey
+                #Create composite key
+                $m_pKey = New-Object KeePassLib.Keys.CompositeKey
 
-            #Access database with given Master Password
-            $m_pKey.AddUserKey((New-Object KeePassLib.Keys.KcpPassword($Password)))
+                #Access database with given Master Password
+                $m_pKey.AddUserKey((New-Object KeePassLib.Keys.KcpPassword($Password)))
 
-            #Connect to KeePass Database
-            $m_ioInfo = New-Object KeePassLib.Serialization.IOConnectionInfo
+                #Connect to KeePass Database
+                $m_ioInfo = New-Object KeePassLib.Serialization.IOConnectionInfo
 
-            #Set Database path
-            $m_ioInfo.Path = $PathToDB
+                #Set Database path
+                $m_ioInfo.Path = $PathToDB
 
-            $IStatusLogger = New-Object KeePassLib.Interfaces.NullStatusLogger
+                $IStatusLogger = New-Object KeePassLib.Interfaces.NullStatusLogger
 
-            #Open KeePass Database
-            $PwDatabase.Open($m_ioInfo,$m_pKey,$IStatusLogger)
+                #Open KeePass Database
+                $PwDatabase.Open($m_ioInfo,$m_pKey,$IStatusLogger)
 
-            #Retrieve all objects from RootGroup
-            $pwItems = $PwDatabase.RootGroup.GetObjects($true, $true)
+                #Retrieve all objects from RootGroup
+                $pwItems = $PwDatabase.RootGroup.GetObjects($true, $true)
 
-            foreach($pwItem in $pwItems) {
+                foreach($pwItem in $pwItems) {
 
-                #Accounts that match items from $Account
-                if ($pwItem.Strings.ReadSafe("UserName") -like "*$Account*") {
+                    #Accounts that match items from $Account
+                    if ($pwItem.Strings.ReadSafe("UserName") -like "*$Account*") {
             
-                    $SecureAccountData = [pscustomobject] @{
+                        $SecureAccountData = [pscustomobject] @{
 
-                        Title = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Title") -AsPlainText -Force
-                        Name  = ConvertTo-SecureString $pwItem.Strings.ReadSafe("UserName") -AsPlainText -Force
-                        PW    = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Password") -AsPlainText -Force
-                    }
+                            Title = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Title") -AsPlainText -Force
+                            Name  = ConvertTo-SecureString $pwItem.Strings.ReadSafe("UserName") -AsPlainText -Force
+                            PW    = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Password") -AsPlainText -Force
+                        }
 
-                    $tBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Title));                   
-                    $nBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Name));    
-                    $pBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.PW));
+                        $tBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Title))                   
+                        $nBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Name))    
+                        $pBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.PW))
                     
-                    $tString = [system.runtime.interopservices.marshal]::PtrToStringAuto($tBSTR);      
-                    $nString = [system.runtime.interopservices.marshal]::PtrToStringAuto($nBSTR); 
-                    $pString = [system.runtime.interopservices.marshal]::PtrToStringAuto($pBSTR);  
+                        $tString = [system.runtime.interopservices.marshal]::PtrToStringAuto($tBSTR)      
+                        $nString = [system.runtime.interopservices.marshal]::PtrToStringAuto($nBSTR)
+                        $pString = [system.runtime.interopservices.marshal]::PtrToStringAuto($pBSTR) 
                     
                     
-                    $script:AccountData += [pscustomobject] @{
+                        $CurrentAccountData += [pscustomobject] @{
                         
-                      Title =  $tString
-                      Name =  $nString
-                      PW =  $pString
+                          Title =  $tString
+                          Name =  $nString
+                          PW =  $pString
 
-                    }          
+                        }          
+                    }
                 }
-            }
 
-            #Close KeePass Database
-            $PwDatabase.Close()
+                #Close KeePass Database
+                $PwDatabase.Close()
+            }
+            
+            $CorrectDBPass = $True
+            Break;
+        }
+
+        Catch {
+
+            Write-Host -ForegroundColor Yellow "An error ocurred. The Master Password you entered is incorrect. Please try again."
+        
         }
     }
+}
 
-    Catch {
+Until($CorrectDBPass -eq $True)
 
-        Write-Host -ForegroundColor Yellow "An error ocurred. Please enter the correct Master Password."
-        Break
-    }
 
     #Zero out Binary String
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
 
-    #Remove secure variables from memory; remove/clear all created variables containing information
+    #Remove secure variables from memory
     Remove-Variable Password
 
     #Generate KeePass account output
-    $Data
+    $CurrentAccountData
 }
 
-#Variable with working account information
-$Data = Find-PasswordInKeePassDBUsingPassword 
-
+$Data = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
+$Data 
 
 function Set-ServiceAccountPassword {
 
@@ -145,23 +304,24 @@ function Set-ServiceAccountPassword {
     [CmdletBinding(SupportsShouldProcess=$true)]
 
     param(
-      
-        [Management.Automation.PSCredential[]] $ServiceCredential
+      [parameter(Position=2,Mandatory=$true)]
+        [Management.Automation.PSCredential[]] $ServiceCredential,
+        [Management.Automation.PSCredential] $ConnectionCredential
     )
 
     function Set-ServiceCredential {
 
     param(
-         
-        #$Import needs to be information from Get-NonStandardServiceAccount 
-        $Import = "#"
+
+        [Parameter(Mandatory=$true)]
+        [string]$CSVFile = (Read-Host -Prompt "Supply a CSV file"),
         $ServiceCredential=$Data
     )
     
         $Import = Import-CSV $CSVFile
 
-        $ComputerName = $Import.SystemName
-        $ServiceName = $Import.Name
+        $ComputerName = $FoundAccounts.SystemName
+        $ServiceName = $FoundAccounts.Name
 
         $wmiFilter = "Name='{0}' OR DisplayName='{0}'" -f $serviceName
         $params = @{
