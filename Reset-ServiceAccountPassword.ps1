@@ -304,30 +304,18 @@ function Set-ServiceAccountPassword {
     [CmdletBinding(SupportsShouldProcess=$true)]
 
     param(
-      [parameter(Position=2,Mandatory=$true)]
-        [Management.Automation.PSCredential[]] $ServiceCredential,
-        [Management.Automation.PSCredential] $ConnectionCredential
+        $ServiceCredential=$Data,
+        $ComputerName = $FoundAccounts.SystemName,
+        $ServiceName = $FoundAccounts.Name
     )
-
+       
     function Set-ServiceCredential {
 
-    param(
-
-        [Parameter(Mandatory=$true)]
-        [string]$CSVFile = (Read-Host -Prompt "Supply a CSV file"),
-        $ServiceCredential=$Data
-    )
-    
-        $Import = Import-CSV $CSVFile
-
-        $ComputerName = $FoundAccounts.SystemName
-        $ServiceName = $FoundAccounts.Name
-
-        $wmiFilter = "Name='{0}' OR DisplayName='{0}'" -f $serviceName
+        $wmiFilter = "Name='{0}' OR DisplayName='{0}'" -f $Service
         $params = @{
 
           "Class" = "Win32_Service"
-          "ComputerName" = $computerName
+          "ComputerName" = $Computer
           "Filter" = $wmiFilter
           "ErrorAction" = "Stop"
         }
@@ -335,7 +323,7 @@ function Set-ServiceAccountPassword {
         $WMIobj = Get-WmiObject @params
 
 
-        if($PSCmdlet.ShouldProcess("Service '$serviceName' on '$computerName'","Set credentials")) {
+        if($PSCmdlet.ShouldProcess("Service '$Service' on '$Computer'","Set credentials")) {
 
           # See https://msdn.microsoft.com/en-us/library/aa384901.aspx
           $returnValue = ($WMIobj.Change($null,                  # DisplayName
@@ -344,16 +332,16 @@ function Set-ServiceAccountPassword {
             $null,                                               # ErrorControl
             $null,                                               # StartMode
             $null,                                               # DesktopInteract
-            $serviceCredential.Name,                             # StartName
-            $serviceCredential.PW,                               # StartPassword
+            $Credential.Name,                                    # StartName
+            $Credential.PW,                                      # StartPassword
             $null,                                               # LoadOrderGroup
             $null,                                               # LoadOrderGroupDependencies
             $null)).ReturnValue                                  # ServiceDependencies
-          $errorMessage = "Error setting credentials for service '$serviceName' on '$computerName'"
+          $errorMessage = "Error setting credentials for service '$Service' on '$Computer'"
 
             switch($returnValue) {
 
-                0  { Write-Verbose "Set credentials for service '$serviceName' on '$computerName'" }
+                0  { Write-Verbose "Set credentials for service '$Service' on '$Computer'" }
                 1  { Write-Error "$errorMessage - Not Supported" }
                 2  { Write-Error "$errorMessage - Access Denied" }
                 3  { Write-Error "$errorMessage - Dependent Services Running" }
@@ -385,13 +373,16 @@ function Set-ServiceAccountPassword {
     process {
 
         foreach($Computer in $ComputerName) {
+            
+            foreach($Credential in $ServiceCredential){ 
 
-            foreach($Service in $ServiceName) {
+                foreach($Service in $ServiceName) {
 
-                Set-ServiceCredential $Service $Computer $ServiceCredential 
+                    Set-ServiceCredential $Service $Computer $Credential
+                }
             }
         }
     }
 }
 
-#Set-ServiceAccountPassword
+Set-ServiceAccountPassword
