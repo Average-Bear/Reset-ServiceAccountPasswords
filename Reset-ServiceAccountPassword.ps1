@@ -2,10 +2,10 @@
 .SYNOPSIS
 Written by JBear 4/5/2017
 
-This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers and services.
 
 .DESCRIPTION
-This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers and services.
 
 Add appropriate switch to line 165 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com)
 
