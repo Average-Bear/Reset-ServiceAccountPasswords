@@ -1,12 +1,7 @@
 <#
-Final goal: Ability to reset all service account passwords, on all servers, for all services. New passwords and account information will
-be based off of information from KeePass Database. This script could potentially be adjusted to work with a different software or a different input method, if preferred.
-
 Current goals: 
-      
-- Clear any variables containing secure information in cleartext after new passwords have been set.
-- Complete all documentation.
-- Search for KeePass.exe location, then feed the filepath instead of hardcoding a location.
+- Complete all documentation (mostly done).
+- Do a search for KeePass.exe location, then feed the filepath instead of hardcoding a location; all required .DLL's should be located in the KeePass folder unless structure is different (for some reason).
 
 Achieved goals: 
 - Access KeePass Master DB and retrieve all accounts information as a secure string.
@@ -14,19 +9,42 @@ Achieved goals:
 - Integrated Get-NonStandardServiceAccounts output. 
 - Used Get-NonStandarServiceAccounts information from server and passed it into the account search within the KeePass Database.
 - Included a Do{ While{}} loop to handle mistyped Master DB Password.
+- Remove any cleartext and binary strings immediately after decryption.
+- Remove all user created variables (current PowerShell session).
 
-Notes: This script is in beta testing at the current moment. Proper variables aren't set within several different functions; as I am 
-testing individual functionality before integrating them with each other.
+Notes: This script is currently working. Be sure to check current path locations for KeePass variables.
 
-Feel free to add or adjust anything that you think could be helpful but, please review the current goals before implementing changes and submitting to me. 
+YOU WILL NEED TO CHANGE SWITCH VALUES IN THE FIRST FUNCTION TO SUIT YOUR ENVIRONMENT OR, IMPLEMENT ANOTHER WAY TO SEARCH FOR SERVERS/COMPUTERS.
+THIS WORKS FOR MY ENVIRONMENT AS IS. IT IS UP TO YOU TO MAKE IT WORK FOR YOUR OWN ENVIRONMENT OR, TO SUBMIT CHANGES TO MAKE THIS MORE VERSATILE.
+
+This code is in working order but, may not look the best. If you have formatting changes or, other changes to submit please let me know.
+Feel free to add or adjust anything that you think could be helpful or, something that needs to be changed. Please, test your changes before submission. 
+
+Thanks!
+#>
+
+<#
+.SYNOPSIS
+Written by JBear 4/5/2017
+
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+
+.DESCRIPTION
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+
+Add appropriate switch to line 172 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com)
+
+Adjust values for lines 183 & 204 to specify your KeePass folder location and your .KDBX database file.
+
 #>
 
 function Get-ServiceAccounts {
 <#
-.SYNOPOSIS
-Change values of switches (if desired) and change default parent OU on line 62.
+.SYNOPSIS
+Retrieve all Non-Standard Service account information from specified servers.
 
-Add appropriate switch to line 150 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com OU)
+.DESCRIPTION
+Retrieve all Non-Standard Service account information from specified servers. Retrieves server name, service, and service account.
 #>
 
 Param(
@@ -46,7 +64,7 @@ Try {
 
 Catch {
 
-    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module is required to run this script. Please, install RSAT and configure this server properly."
+    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module; it is required to run this script. Please, install RSAT and configure this server properly."
     Break
 }
 
@@ -119,7 +137,6 @@ foreach ($C in $ComputerList) {
 
 $i=0
 $j=0
-
 #Create function
 function Get-Accounts {
 
@@ -150,28 +167,37 @@ function Get-Accounts {
                 Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\MSSQL*"} |
                 Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
 
-                    foreach($Obj in $WMI) {
+                foreach($Obj in $WMI) {
                         
-                        [pscustomobject] @{
+                    [pscustomobject] @{
 
-                            StartName    = $Obj.StartName
-                            Name         = $Obj.Name
-                            DisplayName  = $Obj.DisplayName
-                            StartMode    = $Obj.StartMode
-                            SystemName   = $Obj.SystemName
-                        }
+                        StartName    = $Obj.StartName
+                        Name         = $Obj.Name
+                        DisplayName  = $Obj.DisplayName
+                        StartMode    = $Obj.StartMode
+                        SystemName   = $Obj.SystemName
                     }
-                
+                }          
             } -ArgumentList $Computer
         }
     }
 }
 
-    Get-Accounts | Wait-Job | Receive-Job
+Get-Accounts | Wait-Job | Receive-Job
 } 
 
-$FoundAccounts = Get-ServiceAccounts -School
+#Call function and store output; ADD switches to next line to adjust specified search criteria
+$FoundAccounts = Get-ServiceAccounts
+$FoundSystems = $FoundAccounts.SystemName
 
+Write-Host "`nService Accounts detected on:"
+
+foreach($Found in $FoundSystems) {
+
+    Write-Host $Found
+}
+
+#Path to KeePass
 $PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
 
 #Load all KeePass .NET binaries in the folder
@@ -179,14 +205,21 @@ $PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
 
 function Find-PasswordInKeePassDBUsingPassword {
 
+<#
+.SYNOPSIS
+Access KeePass Master DB; required to enter proper password to continue.
+
+.DESCRIPTION
+Access KeePass Master DB; required to enter proper password to continue.
+#>
+
     [CmdletBinding()]
     [OutputType([String[]])]
 
     Param(
         
         #KeePass Database Path
-        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"
-     
+        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"   
     )
 
 Do {
@@ -202,9 +235,6 @@ Do {
         #Pass Secure String to BinaryString
         $BSTR = [system.runtime.interopservices.marshal]::SecureStringToBSTR($MasterPasswordDB)
 
-        #Pass Binary String
-        $Password = [system.runtime.interopservices.marshal]::PtrToStringAuto($BSTR)
-
         #Empty array for later use in script
         $CurrentAccountData=@()
 
@@ -218,8 +248,17 @@ Do {
                 #Create composite key
                 $m_pKey = New-Object KeePassLib.Keys.CompositeKey
 
+                #Pass Binary String
+                $Password = [system.runtime.interopservices.marshal]::PtrToStringAuto($BSTR)
+
                 #Access database with given Master Password
                 $m_pKey.AddUserKey((New-Object KeePassLib.Keys.KcpPassword($Password)))
+
+                #Remove secure variables from memory
+                Remove-Variable Password
+
+                #Zero out Binary String
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
 
                 #Connect to KeePass Database
                 $m_ioInfo = New-Object KeePassLib.Serialization.IOConnectionInfo
@@ -239,30 +278,14 @@ Do {
 
                     #Accounts that match items from $Account
                     if ($pwItem.Strings.ReadSafe("UserName") -like "*$Account*") {
-            
-                        $SecureAccountData = [pscustomobject] @{
+                        
+                        #Secure Account Data
+                        $SecureAccountData += [pscustomobject] @{
 
                             Title = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Title") -AsPlainText -Force
                             Name  = ConvertTo-SecureString $pwItem.Strings.ReadSafe("UserName") -AsPlainText -Force
                             PW    = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Password") -AsPlainText -Force
-                        }
-
-                        $tBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Title))                   
-                        $nBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.Name))    
-                        $pBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($SecureAccountData.PW))
-                    
-                        $tString = [system.runtime.interopservices.marshal]::PtrToStringAuto($tBSTR)      
-                        $nString = [system.runtime.interopservices.marshal]::PtrToStringAuto($nBSTR)
-                        $pString = [system.runtime.interopservices.marshal]::PtrToStringAuto($pBSTR) 
-                    
-                    
-                        $CurrentAccountData += [pscustomobject] @{
-                        
-                          Title =  $tString
-                          Name =  $nString
-                          PW =  $pString
-
-                        }          
+                        }        
                     }
                 }
 
@@ -270,50 +293,69 @@ Do {
                 $PwDatabase.Close()
             }
             
+            #Set $CorrectDBPass to break Do{} loop
             $CorrectDBPass = $True
             Break;
         }
 
         Catch {
 
-            Write-Host -ForegroundColor Yellow "An error ocurred. The Master Password you entered is incorrect. Please try again."
-        
+            #Zero out Binary String
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+            
+            #Incorrect Master DB Password entry will throw you back to re-enter a password, and throw this error
+            Write-Host -ForegroundColor Yellow "An error ocurred. The Master Password you entered is incorrect. Please try again."       
         }
     }
 }
 
 Until($CorrectDBPass -eq $True)
 
-
-    #Zero out Binary String
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-
-    #Remove secure variables from memory
-    Remove-Variable Password
-
-    #Generate KeePass account output
-    $CurrentAccountData
+    #Generate secure KeePass output
+    $SecureAccountData
 }
 
-$Data = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
-
-#Used for testing output purposes (uncomment if you want to ensure you're pulling the proper data)
-#$Data 
+$CurrentAccountData = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
 
 function Set-ServiceAccountPassword {
+
+<#
+.SYNOPSIS
+Automatically set service account passwords on remote servers, based on the current KeePass Database Account information.
+
+.DESCRIPTION
+Automatically set service account passwords on remote servers, based on the current KeePass Database Account information.
+#>
 
     #Find a way to set credentials for multiple accounts, pass them to services based on account name.
     [CmdletBinding(SupportsShouldProcess=$true)]
 
     param(
-        $ServiceCredential=$Data,
-        $ComputerName = $FoundAccounts.SystemName,
-        $ServiceName = $FoundAccounts.Name
+        
+        $ServiceInfo = $FoundAccounts,
+        $ComputerName = $ServiceInfo.SystemName,
+        $ServiceCredential = $CurrentAccountData     
     )
        
     function Set-ServiceCredential {
+    [CmdletBinding(SupportsShouldProcess=$true)]
 
-        $wmiFilter = "Name='{0}' OR DisplayName='{0}'" -f $Service
+        param(
+        
+        [Parameter(ValueFromPipeline=$true,Position=0)]
+        [string]$AccountName,
+
+        [Parameter(ValueFromPipeline=$true,Position=1)]
+        [string]$Computer,
+         
+        [Parameter(ValueFromPipeline=$true,Position=2)]
+        [string]$Pass       
+    )
+
+        #Filter by Name
+        $wmiFilter = "Name='{0}'" -f $Service.Name
+
+        #Parameters for Get-WMIObject
         $params = @{
 
           "Class" = "Win32_Service"
@@ -322,69 +364,134 @@ function Set-ServiceAccountPassword {
           "ErrorAction" = "Stop"
         }
 
+        #Check for services
         $WMIobj = Get-WmiObject @params
 
+        $ServiceName = $Service.Name 
 
-        if($PSCmdlet.ShouldProcess("Service '$Service' on '$Computer'","Set credentials")) {
+        #Set credentials on specified $Service.Name
+        if($PSCmdlet.ShouldProcess("Service '$Service.Name' on '$Computer'","Set credentials")) {
 
-          # See https://msdn.microsoft.com/en-us/library/aa384901.aspx
-          $returnValue = ($WMIobj.Change($null,                  # DisplayName
-            $null,                                               # PathName
-            $null,                                               # ServiceType
-            $null,                                               # ErrorControl
-            $null,                                               # StartMode
-            $null,                                               # DesktopInteract
-            $Credential.Name,                                    # StartName
-            $Credential.PW,                                      # StartPassword
-            $null,                                               # LoadOrderGroup
-            $null,                                               # LoadOrderGroupDependencies
-            $null)).ReturnValue                                  # ServiceDependencies
-          $errorMessage = "Error setting credentials for service '$Service' on '$Computer'"
+          #See https://msdn.microsoft.com/en-us/library/aa384901.aspx
+          $returnValue = ($WMIobj.Change($null,                  #DisplayName
+            $null,                                               #PathName
+            $null,                                               #ServiceType
+            $null,                                               #ErrorControl
+            $null,                                               #StartMode
+            $null,                                               #DesktopInteract
+            $AccountName,                                        #StartName
+            $Pass,                                               #StartPassword
+            $null,                                               #LoadOrderGroup
+            $null,                                               #LoadOrderGroupDependencies
+            $null)).ReturnValue                                  #ServiceDependencies
+          $errorMessage = "Error setting [$AccountName] credentials for service [$ServiceName] on [$Computer]"
 
+          #Remove value
+          Remove-Variable Pass
+
+            #Error codes
             switch($returnValue) {
 
-                0  { Write-Verbose "Set credentials for service '$Service' on '$Computer'" }
-                1  { Write-Error "$errorMessage - Not Supported" }
-                2  { Write-Error "$errorMessage - Access Denied" }
-                3  { Write-Error "$errorMessage - Dependent Services Running" }
-                4  { Write-Error "$errorMessage - Invalid Service Control" }
-                5  { Write-Error "$errorMessage - Service Cannot Accept Control" }
-                6  { Write-Error "$errorMessage - Service Not Active" }
-                7  { Write-Error "$errorMessage - Service Request timeout" }
-                8  { Write-Error "$errorMessage - Unknown Failure" }
-                9  { Write-Error "$errorMessage - Path Not Found" }
-                10 { Write-Error "$errorMessage - Service Already Stopped" }
-                11 { Write-Error "$errorMessage - Service Database Locked" }
-                12 { Write-Error "$errorMessage - Service Dependency Deleted" }
-                13 { Write-Error "$errorMessage - Service Dependency Failure" }
-                14 { Write-Error "$errorMessage - Service Disabled" }
-                15 { Write-Error "$errorMessage - Service Logon Failed" }
-                16 { Write-Error "$errorMessage - Service Marked For Deletion" }
-                17 { Write-Error "$errorMessage - Service No Thread" }
-                18 { Write-Error "$errorMessage - Status Circular Dependency" }
-                19 { Write-Error "$errorMessage - Status Duplicate Name" }
-                20 { Write-Error "$errorMessage - Status Invalid Name" }
-                21 { Write-Error "$errorMessage - Status Invalid Parameter" }
-                22 { Write-Error "$errorMessage - Status Invalid Service Account" }
-                23 { Write-Error "$errorMessage - Status Service Exists" }
-                24 { Write-Error "$errorMessage - Service Already Paused" }
+                0  { Write-Host "`nSet [$AccountName] credentials for service [$ServiceName] on [$Computer]" }
+                1  { Write-Error "`n$errorMessage - Not Supported" }
+                2  { Write-Error "`n$errorMessage - Access Denied" }
+                3  { Write-Error "`n$errorMessage - Dependent Services Running" }
+                4  { Write-Error "`n$errorMessage - Invalid Service Control" }
+                5  { Write-Error "`n$errorMessage - Service Cannot Accept Control" }
+                6  { Write-Error "`n$errorMessage - Service Not Active" }
+                7  { Write-Error "`n$errorMessage - Service Request timeout" }
+                8  { Write-Error "`n$errorMessage - Unknown Failure" }
+                9  { Write-Error "`n$errorMessage - Path Not Found" }
+                10 { Write-Error "`n$errorMessage - Service Already Stopped" }
+                11 { Write-Error "`n$errorMessage - Service Database Locked" }
+                12 { Write-Error "`n$errorMessage - Service Dependency Deleted" }
+                13 { Write-Error "`n$errorMessage - Service Dependency Failure" }
+                14 { Write-Error "`n$errorMessage - Service Disabled" }
+                15 { Write-Error "`n$errorMessage - Service Logon Failed" }
+                16 { Write-Error "`n$errorMessage - Service Marked For Deletion" }
+                17 { Write-Error "`n$errorMessage - Service No Thread" }
+                18 { Write-Error "`n$errorMessage - Status Circular Dependency" }
+                19 { Write-Error "`n$errorMessage - Status Duplicate Name" }
+                20 { Write-Error "`n$errorMessage - Status Invalid Name" }
+                21 { Write-Error "`n$errorMessage - Status Invalid Parameter" }
+                22 { Write-Error "`n$errorMessage - Status Invalid Service Account" }
+                23 { Write-Error "`n$errorMessage - Status Service Exists" }
+                24 { Write-Error "`n$errorMessage - Service Already Paused" }
           }
+
+          #Remove value
+          Remove-Variable AccountName
        }
     }
 
-    process {
+    foreach($Computer in $ComputerName) {
 
-        foreach($Computer in $ComputerName) {
+        foreach($Service in $ServiceInfo) {
+
+            #If matches; continue
+            if($Service.SystemName -eq $Computer) {
             
-            foreach($Credential in $ServiceCredential){ 
+                foreach($Credential in $ServiceCredential) {
+                                       
+                    #Convert Secure Name String to Binary                   
+                    $nBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($Credential.Name)) 
 
-                foreach($Service in $ServiceName) {
+                    #Convert Binary to String
+                    $nString = [system.runtime.interopservices.marshal]::PtrToStringAuto($nBSTR)   
+                    
+                    #Get leaf to match account values
+                    $Leaf = Split-Path -Path $Service.StartName -Leaf 
+                                         
+                    #If contains
+                    if($Leaf -eq "$nString") {
+                    
+                    #Convert Secure PW String to Binary
+                    $pBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($Credential.PW))
+                    
+                    #Convert Binary to String 
+                    $pString = [system.runtime.interopservices.marshal]::PtrToStringAuto($pBSTR)
+                    
+                    #Clear Binary Strings to avoid a potential secondary conversion
+                    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($nBSTR) 
+                    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pBSTR)    
+                                           
+                        #Call function to set new password        
+                        Set-ServiceCredential $Service.Startname $Computer $pString
+                     
+                        Try {
+                            
+                            $ServiceName = $Service.Name    
 
-                    Set-ServiceCredential $Service $Computer $Credential
+                            #Restart service
+                            Restart-Service -DisplayName $Service.DisplayName -ErrorAction Stop                    
+                            Write-Host "$ServiceName restart successful."
+                        }
+
+                        Catch {
+                            
+                            $ServiceName = $Service.Name
+
+                            Write-Host "$ServiceName restart failed. This error may be caused by an incorrect password for $Leaf. Please, ensure the password is correct, then run the script again."
+                        }
+                    }
+                    
+                    else {
+                        
+                        Continue
+                    }
                 }
+            }
+
+            else {
+                
+                Continue                
             }
         }
     }
 }
 
+#Call function
 Set-ServiceAccountPassword
+
+#Clear all user created variables in current session
+Get-Variable -Exclude PWD, *Preference | Remove-Variable -EA 0
