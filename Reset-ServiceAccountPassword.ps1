@@ -219,7 +219,7 @@ Access KeePass Master DB; required to enter proper password to continue.
     Param(
         
         #KeePass Database Path
-        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"   
+        $PathToDB = "C:\Program Files (x86)\KeePass\Master.kdbx"   
     )
 
 Do {
