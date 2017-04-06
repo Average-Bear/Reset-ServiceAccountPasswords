@@ -431,6 +431,8 @@ Automatically set service account passwords on remote servers, based on the curr
                                            
                         #Call function to set new password        
                         Set-ServiceCredential $Service.Startname $Computer $pString
+                        
+                        Remove-Variable pString
                      
                         Try {
                             
