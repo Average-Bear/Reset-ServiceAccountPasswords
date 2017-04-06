@@ -1,16 +1,16 @@
+function Set-AllServiceAccountPasswords {
 <#
 .SYNOPSIS
 Written by JBear 4/5/2017
 
-This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers and services.
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
 .DESCRIPTION
-This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers and services.
+This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
-Add appropriate switch to line 165 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com)
+Add appropriate switch to line 468 if you wish to change domain or OU (Defaults to OU=Computers,DC=acme,DC=com)
 
-Adjust values for lines 176 & 197 to specify your KeePass folder location and your .KDBX database file.
-
+Adjust values for lines 179 & 201 to specify your KeePass folder location and your .KDBX database file.
 #>
 
 function Get-ServiceAccounts {
@@ -112,6 +112,7 @@ foreach ($C in $ComputerList) {
 
 $i=0
 $j=0
+
 #Create function
 function Get-Accounts {
 
@@ -161,22 +162,25 @@ function Get-Accounts {
 Get-Accounts | Wait-Job | Receive-Job
 } 
 
-#Call function and store output; ADD switches to next line to adjust specified search criteria
-$FoundAccounts = Get-ServiceAccounts
-$FoundSystems = $FoundAccounts.SystemName
+function OutputDetected {
 
-Write-Host "`nService Accounts detected on:"
+    $FoundSystems = $FoundAccounts.SystemName
+    Write-Host "`nService Accounts detected on:"
 
-foreach($Found in $FoundSystems) {
+    foreach($Found in $FoundSystems) {
 
-    Write-Host $Found
+        Write-Host $Found
+    }
 }
 
-#Path to KeePass
-$PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
+function LoadKeePass {
 
-#Load all KeePass .NET binaries in the folder
-(Get-ChildItem -Recurse $PathToKeePassFolder| Where {($_.Extension -EQ ".dll") -or ($_.Extension -eq ".exe")} | ForEach { $AssemblyName=$_.FullName; Try {[Reflection.Assembly]::LoadFile($AssemblyName) } Catch{ }} ) | Out-Null
+    #Path to KeePass
+    $PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
+
+    #Load all KeePass .NET binaries in the folder
+    (Get-ChildItem -Recurse $PathToKeePassFolder| Where {($_.Extension -EQ ".dll") -or ($_.Extension -eq ".exe")} | ForEach { $AssemblyName=$_.FullName; Try {[Reflection.Assembly]::LoadFile($AssemblyName) } Catch{ }} ) | Out-Null
+}
 
 function Find-PasswordInKeePassDBUsingPassword {
 
@@ -194,7 +198,7 @@ Access KeePass Master DB; required to enter proper password to continue.
     Param(
         
         #KeePass Database Path
-        $PathToDB = "C:\Program Files (x86)\KeePass\Master.kdbx"   
+        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"   
     )
 
 Do {
@@ -287,8 +291,6 @@ Until($CorrectDBPass -eq $True)
     $SecureAccountData
 }
 
-$CurrentAccountData = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
-
 function Set-ServiceAccountPassword {
 
 <#
@@ -330,10 +332,10 @@ Automatically set service account passwords on remote servers, based on the curr
         #Parameters for Get-WMIObject
         $params = @{
 
-          "Class" = "Win32_Service"
-          "ComputerName" = $Computer
-          "Filter" = $wmiFilter
-          "ErrorAction" = "Stop"
+            "Class" = "Win32_Service"
+            "ComputerName" = $Computer
+            "Filter" = $wmiFilter
+            "ErrorAction" = "Stop"
         }
 
         #Check for services
@@ -344,8 +346,8 @@ Automatically set service account passwords on remote servers, based on the curr
         #Set credentials on specified $Service.Name
         if($PSCmdlet.ShouldProcess("Service '$Service.Name' on '$Computer'","Set credentials")) {
 
-          #See https://msdn.microsoft.com/en-us/library/aa384901.aspx
-          $returnValue = ($WMIobj.Change($null,                  #DisplayName
+            #See https://msdn.microsoft.com/en-us/library/aa384901.aspx
+            $returnValue = ($WMIobj.Change($null,                  #DisplayName
             $null,                                               #PathName
             $null,                                               #ServiceType
             $null,                                               #ErrorControl
@@ -356,15 +358,15 @@ Automatically set service account passwords on remote servers, based on the curr
             $null,                                               #LoadOrderGroup
             $null,                                               #LoadOrderGroupDependencies
             $null)).ReturnValue                                  #ServiceDependencies
-          $errorMessage = "Error setting [$AccountName] credentials for service [$ServiceName] on [$Computer]"
+            $errorMessage = "Error setting [$AccountName] credentials for service [$ServiceName] on [$Computer]"
 
-          #Remove value
-          Remove-Variable Pass
+            #Remove value
+            Remove-Variable Pass
 
             #Error codes
             switch($returnValue) {
 
-                0  { Write-Host "`nSet [$AccountName] credentials for service [$ServiceName] on [$Computer]" }
+                0  { Write-Output "`nSet [$AccountName] credentials for service [$ServiceName] on [$Computer]" }
                 1  { Write-Error "`n$errorMessage - Not Supported" }
                 2  { Write-Error "`n$errorMessage - Access Denied" }
                 3  { Write-Error "`n$errorMessage - Dependent Services Running" }
@@ -389,11 +391,11 @@ Automatically set service account passwords on remote servers, based on the curr
                 22 { Write-Error "`n$errorMessage - Status Invalid Service Account" }
                 23 { Write-Error "`n$errorMessage - Status Service Exists" }
                 24 { Write-Error "`n$errorMessage - Service Already Paused" }
-          }
+            }
 
-          #Remove value
-          Remove-Variable AccountName
-       }
+            #Remove value
+            Remove-Variable AccountName
+        }
     }
 
     foreach($Computer in $ComputerName) {
@@ -462,8 +464,22 @@ Automatically set service account passwords on remote servers, based on the curr
     }
 }
 
+#Call function and store output
+$FoundAccounts = Get-ServiceAccounts
+
+#Call function
+OutputDetected
+
+#Call function
+LoadKeePass
+
+#Call function and store data
+$CurrentAccountData = Find-PasswordInKeePassDBUsingPassword | Select -Unique * 
+
 #Call function
 Set-ServiceAccountPassword
 
-#Clear all user created variables in current session
-Get-Variable -Exclude PWD, *Preference | Remove-Variable -EA 0
+}#End Set-AllServiceAccountPasswords
+
+#Call main function
+Set-AllServiceAccountPasswords
