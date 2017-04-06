@@ -1,16 +1,18 @@
 function Set-AllServiceAccountPasswords {
 <#
 .SYNOPSIS
-Written by JBear 4/5/2017
-
-This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+Resets Domain service account passwords to the current one from a KeePass database.
 
 .DESCRIPTION
 This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
-Add appropriate switch to line 470 if you wish to change domain or OU (Defaults to OU=Computers,DC=acme,DC=com)
+Add appropriate switch to line 472 if you wish to change domain or OU (defaults to .MIL domain, 05_Servers OU)
 
-Adjust values for lines 179 & 201 to specify your KeePass folder location and your .KDBX database file.
+Adjust values for lines 181 & 203 to specify your KeePass folder location and your .KDBX database file.
+
+.NOTES
+Author: Jeremy DeWitt aka JBear
+Date: 2017-04-05
 #>
 
 function Get-ServiceAccounts {
