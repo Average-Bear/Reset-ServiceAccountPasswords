@@ -8,7 +8,7 @@ This script provides the capability to change any domain service account passwor
 .DESCRIPTION
 This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
-Add appropriate switch to line 468 if you wish to change domain or OU (Defaults to OU=Computers,DC=acme,DC=com)
+Add appropriate switch to line 470 if you wish to change domain or OU (Defaults to OU=Computers,DC=acme,DC=com)
 
 Adjust values for lines 179 & 201 to specify your KeePass folder location and your .KDBX database file.
 #>
