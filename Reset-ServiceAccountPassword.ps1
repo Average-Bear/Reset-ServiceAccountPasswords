@@ -6,7 +6,7 @@ Resets Domain service account passwords to the current one from a KeePass databa
 .DESCRIPTION
 This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
-Add appropriate switch to line 472 if you wish to change domain or OU (defaults to .MIL domain, 05_Servers OU)
+Add appropriate switch to line 472 if you wish to change domain or OU (defaults to OU=Computers,DC=acme,DC=com)
 
 Adjust values for lines 181 & 203 to specify your KeePass folder location and your .KDBX database file.
 
