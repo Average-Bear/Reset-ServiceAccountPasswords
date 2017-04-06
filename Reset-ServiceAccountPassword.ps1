@@ -210,9 +210,6 @@ Do {
         #Pass Secure String to BinaryString
         $BSTR = [system.runtime.interopservices.marshal]::SecureStringToBSTR($MasterPasswordDB)
 
-        #Empty array for later use in script
-        $CurrentAccountData=@()
-
         Try {
 
             foreach($Account in $ServiceAccounts) {
