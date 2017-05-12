@@ -6,17 +6,17 @@
     This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
 .EXAMPLES
-    .\Set-ServiceAccountPasswordsViaKeePass.ps1
+    .\Reset-ServiceAccountPasswordsViaKeePass.ps1
 
     Search default OU ( "OU=Servers, DC=ACME, DC=COM" ) and reset all found service accounts to password in KeePass. Will not affect if account is not found in KeePass.
 
 .EXAMPLES
-    .\Set-ServiceAccountPasswordsViaKeePass.ps1 -Q
+    .\Reset-ServiceAccountPasswordsViaKeePass.ps1 -Q
 
     Search specified OU ( "OU=Q, OU=Servers, DC=ACME, DC=COM" ) and reset all found service accounts to password in KeePass. Will not affect if account is not found in KeePass.
 
 .EXAMPLES
-    .\Set-ServiceAccountPasswordsViaKeePass.ps1 Server01, Server02
+    .\Reset-ServiceAccountPasswordsViaKeePass.ps1 Server01, Server02
 
     Search specified servers ( Server01 and Server02 ) and reset all found service accounts to password in KeePass. Will not affect if account is not found in KeePass.
 
