@@ -58,7 +58,9 @@ param(
 
     #Ability to supply a single server or, multiple server names
     [Parameter(ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()] 
     [String[]]$ServerName,
+    
     [Switch]$S,
     [Switch]$K,
     [Switch]$W,
