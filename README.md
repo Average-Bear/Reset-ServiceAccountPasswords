@@ -15,14 +15,5 @@ Achieved goals:
 
 Notes: This script is currently working. Be sure to check current path locations for KeePass variables.
 
-YOU WILL NEED TO CHANGE SWITCH VALUES IN THE FIRST FUNCTION TO SUIT YOUR ENVIRONMENT OR, IMPLEMENT ANOTHER WAY TO SEARCH FOR 
-SERVERS/COMPUTERS.
-
-THIS WORKS FOR MY ENVIRONMENT AS IS. IT IS UP TO YOU TO MAKE IT WORK FOR YOUR OWN ENVIRONMENT OR, TO SUBMIT CHANGES TO MAKE 
-THIS MORE VERSATILE.
-
-This code is in working order but, may not look the best. If you have formatting changes or, other changes to submit please let me know.
-Feel free to add or adjust anything that you think could be helpful or, something that needs to be changed. Please, test your changes before submission. 
-
 Thanks!
 
