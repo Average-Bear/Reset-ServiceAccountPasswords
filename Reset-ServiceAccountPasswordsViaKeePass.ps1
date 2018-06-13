@@ -40,14 +40,8 @@ param(
     $KeePassDirectory = "C:\Program Files (x86)\KeePass\",
             
     #KeePass Database Path
-    [Parameter(DontShow)]
-    $KeePassKDBX = "C:\Program Files (x86)\KeePass\ITMaster.kdbx", 
-    
-    [Parameter(DontShow)]
-    $i=0,
-
-    [Parameter(DontShow)]
-    $j=0
+    [Parameter(ValueFromPipeline=$true)]
+    $KeePassKDBX = "C:\Program Files (x86)\KeePass\ITMaster.kdbx"
 )
 
 function Get-ServiceAccounts {
@@ -96,17 +90,17 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                     <# Query each computer
                     Note: Get-CIMInstance -ComputerName $Server -ClassName Win32_Service -ErrorAction SilentlyContinue 
                     won't currently work with out of date PowerShell on some servers; change to CIM if your entire environment is running POSH v3 or higher #>
-                    $WMI = (Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
+                    $WMI = Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
 
-                        #Filter out the standard service accounts
-                        Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and                  
-                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
-                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
-                        Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
-                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
-                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
-                        Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
-                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
+                    #Filter out the standard service accounts
+                    Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
+                    Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
+                    Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"}
 
                     foreach($Obj in $WMI) {
                         
