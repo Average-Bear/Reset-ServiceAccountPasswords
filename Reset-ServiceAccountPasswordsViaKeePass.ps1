@@ -41,8 +41,41 @@ param(
             
     #KeePass Database Path
     [Parameter(ValueFromPipeline=$true)]
-    $KeePassKDBX = "C:\Program Files (x86)\KeePass\ITMaster.kdbx"
+    $KeePassKDBX = $null
 )
+
+if($KeePassKDBX -eq $null) {
+
+    Add-Type -AssemblyName System.Windows.Forms
+
+    $Dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $Dialog.InitialDirectory = "$KeePassDirectory"
+    $Dialog.Title = "Select Installation File(s)"
+    $Dialog.Filter = "Installation Files (*.kdbx)| *.kdbx"        
+    $Dialog.Multiselect=$false
+    $Result = $Dialog.ShowDialog()
+
+    if($Result -eq 'OK') {
+
+        Try {
+      
+            $KeePassKDBX = $Dialog.FileNames
+        }
+
+        Catch {
+
+            $KeePassKDBX = $null
+	        Break
+        }
+    }
+
+    else {
+
+        #Shows upon cancellation of Save Menu
+        Write-Host -ForegroundColor Yellow "Notice: No file(s) selected."
+        Break
+    }
+}
 
 function Get-ServiceAccounts {
 <#
@@ -93,14 +126,17 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                     $WMI = Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
 
                     #Filter out the standard service accounts
-                    Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
-                    Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
-                    Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"}
+                    Where-Object -FilterScript {
+                    
+                        $_.StartName -ne "LocalSystem" -and
+                        $_.StartName -ne "NT AUTHORITY\NetworkService" -and
+                        $_.StartName -ne "NT AUTHORITY\LocalService" -and    
+                        $_.StartName -ne "Local System" -and 
+                        $_.StartName -ne "NT AUTHORITY\Local Service" -and
+                        $_.StartName -ne "NT AUTHORITY\Network Service" -and
+                        $_.StartName -notlike "NT SERVICE\*" -and
+                        $_.StartName -ne "NT AUTHORITY\system"
+                    }
 
                     foreach($Obj in $WMI) {
                         
