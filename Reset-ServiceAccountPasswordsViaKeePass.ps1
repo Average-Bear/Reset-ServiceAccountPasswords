@@ -6,17 +6,17 @@
     This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
 
 .EXAMPLES
-    .\Reset-ServiceAccountPasswordsViaKeePass.ps1
-    Search default OU ( "OU=Servers, DC=ACME, DC=COM" ) and reset all found service accounts to password in KeePass. Will not affect if account is not found in KeePass.
-
-.EXAMPLES
     .\Reset-ServiceAccountPasswordsViaKeePass.ps1 Server01, Server02
     Search specified servers ( Server01 and Server02 ) and reset all found service accounts to password in KeePass. Will not affect if account is not found in KeePass.
 
 .NOTES
     Author: Jeremy DeWitt aka JBear
     Date: 2017-04-05
-    Updated: 2017-05-12
+    Updated: 2018-06-13
+        Version 1.2:
+        -Revised Split-Path output in order to reflect any potential Current User services.
+
+        -Adjusted main parameter locations for easier editing capabilties.
         Version 1.1:
 
         - Fixed multiple bugs that were clearing KeePass Master Password too soon.
@@ -35,6 +35,13 @@ param(
     #Ability to supply a single server or, multiple server names
     [Parameter(Mandatory=$true)] 
     [String[]]$ServerName,
+
+    [Parameter(DontShow)]
+    $KeePassDirectory = "C:\Program Files (x86)\KeePass\",
+            
+    #KeePass Database Path
+    [Parameter(DontShow)]
+    $KeePassKDBX = "C:\Program Files (x86)\KeePass\EnterpriseServicesMASTER.kdbx", 
     
     [Parameter(DontShow)]
     $i=0,
@@ -103,13 +110,16 @@ Retrieve all Non-Standard Service account information from specified servers. Re
 
                     foreach($Obj in $WMI) {
                         
-                        [pscustomobject] @{
+                        if(!([String]::IsNullOrWhiteSpace($Obj.StartName))) {
 
-                            StartName    = $Obj.StartName
-                            Name         = $Obj.Name
-                            DisplayName  = $Obj.DisplayName
-                            StartMode    = $Obj.StartMode
-                            SystemName   = $Obj.SystemName
+                            [PSCustomObject] @{
+
+                                StartName    = $Obj.StartName
+                                Name         = $Obj.Name
+                                DisplayName  = $Obj.DisplayName
+                                StartMode    = $Obj.StartMode
+                                SystemName   = $Obj.SystemName
+                            }
                         }
                     }          
                 } -ArgumentList $Server
@@ -120,7 +130,7 @@ Retrieve all Non-Standard Service account information from specified servers. Re
     Get-Accounts | Receive-Job -Wait -AutoRemoveJob
 } 
 
-function OutputDetected {
+function Detect-Output {
 
     $TestPath = $FoundAccounts
 
@@ -136,21 +146,30 @@ function OutputDetected {
        
         foreach($Found in $FoundAccounts) {
         
-            $Found.SystemName + " | " + $Found.DisplayName + " | " + (Split-Path -Path $Found.StartName -Leaf)
+            "$($Found.SystemName) | $($Found.DisplayName) | $(if($Found.StartName) { Split-Path -Path $Found.StartName -Leaf })"
         }
     }
 }
 
-function LoadKeePass {
-
-    #Path to KeePass
-    $PathToKeePassFolder = "C:\Program Files (x86)\KeePass"
+function Load-KeePass {
 
     #Load all KeePass .NET binaries in the folder
-    (Get-ChildItem -Recurse $PathToKeePassFolder| Where {($_.Extension -EQ ".dll") -or ($_.Extension -eq ".exe")} | ForEach { $AssemblyName=$_.FullName; Try {[Reflection.Assembly]::LoadFile($AssemblyName) } Catch{ }} ) | Out-Null
+    (Get-ChildItem -Recurse $KeePassDirectory| Where {($_.Extension -EQ ".dll") -or ($_.Extension -eq ".exe")} | ForEach { 
+    
+        $AssemblyName = $_.FullName
+        
+        Try {
+        
+            [Reflection.Assembly]::LoadFile($AssemblyName) 
+        } 
+        
+        Catch { 
+            
+        }
+    }) | Out-Null
 }
 
-function Find-PasswordInKeePassDBUsingPassword {
+function Access-KeePassDatabase {
 
 <#
 .SYNOPSIS
@@ -163,11 +182,7 @@ Access KeePass Master DB; required to enter proper password to continue.
     [CmdletBinding()]
     [OutputType([String[]])]
 
-    Param(
-        
-        #KeePass Database Path
-        $PathToDB = "C:\Program Files (x86)\KeePass\EnterpriseServicesSchoolMaster.kdbx"   
-    )
+    Param()
 
     Do {
 
@@ -177,14 +192,20 @@ Access KeePass Master DB; required to enter proper password to continue.
             $MasterPasswordDB = (Read-Host -Prompt "KeePass Master Password" -AsSecureString)
 
             #Service Account Names
-            $ServiceAccounts = Split-Path -Path $FoundAccounts.StartName -Leaf | Select -Unique
+            $ServiceAccounts = foreach($Found in $FoundAccounts) { 
+            
+                if(!([String]::IsNullOrWhiteSpace($Found.StartName))) { 
+            
+                    Split-Path -Path $Found.StartName -Leaf -ErrorAction Stop | Select -Unique 
+                }
+            }
 
             Try {
 
                 foreach($Account in $ServiceAccounts) {
 
                     #Pass Secure String to BinaryString
-                    $BSTR = [system.runtime.interopservices.marshal]::SecureStringToBSTR($MasterPasswordDB)
+                    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($MasterPasswordDB)
 
                     #Create KeyPass object
                     $PwDatabase = New-Object KeePassLib.PwDatabase
@@ -193,7 +214,7 @@ Access KeePass Master DB; required to enter proper password to continue.
                     $m_pKey = New-Object KeePassLib.Keys.CompositeKey
 
                     #Pass Binary String
-                    $Password = [system.runtime.interopservices.marshal]::PtrToStringAuto($BSTR)
+                    $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 
                     #Access database with given Master Password
                     $m_pKey.AddUserKey((New-Object KeePassLib.Keys.KcpPassword($Password)))
@@ -208,7 +229,7 @@ Access KeePass Master DB; required to enter proper password to continue.
                     $m_ioInfo = New-Object KeePassLib.Serialization.IOConnectionInfo
 
                     #Set Database path
-                    $m_ioInfo.Path = $PathToDB
+                    $m_ioInfo.Path = $KeePassKDBX
 
                     $IStatusLogger = New-Object KeePassLib.Interfaces.NullStatusLogger
 
@@ -224,7 +245,7 @@ Access KeePass Master DB; required to enter proper password to continue.
                         if ($pwItem.Strings.ReadSafe("UserName") -like "*$Account*") {
                         
                             #Secure Account Data
-                            [pscustomobject] @{
+                            [PSCustomObject] @{
 
                                 Title = ConvertTo-SecureString $pwItem.Strings.ReadSafe("Title") -AsPlainText -Force
                                 Name  = ConvertTo-SecureString $pwItem.Strings.ReadSafe("UserName") -AsPlainText -Force
@@ -271,7 +292,7 @@ Automatically set service account passwords on remote servers, based on the curr
 
     param(
         
-        $ServiceInfo = $FoundAccounts,
+        $ServiceInfo = ($FoundAccounts | Where { $_.Startname -ne $null }),
         $ServerName = $ServiceInfo.SystemName,
         $ServiceCredential = $CurrentAccountData     
     )
@@ -373,10 +394,10 @@ Automatically set service account passwords on remote servers, based on the curr
                 foreach($Credential in $ServiceCredential) {
                                        
                     #Convert Secure Name String to Binary                   
-                    $nBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($Credential.Name)) 
+                    $nBSTR = ([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Credential.Name)) 
 
                     #Convert Binary to String
-                    $nString = [system.runtime.interopservices.marshal]::PtrToStringAuto($nBSTR)   
+                    $nString = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($nBSTR)   
                     
                     #Get leaf to match account values
                     $Leaf = Split-Path -Path $Service.StartName -Leaf 
@@ -385,10 +406,10 @@ Automatically set service account passwords on remote servers, based on the curr
                     if($Leaf -eq "$nString") {
                     
                         #Convert Secure PW String to Binary
-                        $pBSTR = ([system.runtime.interopservices.marshal]::SecureStringToBSTR($Credential.PW))
+                        $pBSTR = ([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Credential.PW))
                     
                         #Convert Binary to String 
-                        $pString = [system.runtime.interopservices.marshal]::PtrToStringAuto($pBSTR)
+                        $pString = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($pBSTR)
                     
                         #Clear Binary Strings to avoid a potential secondary conversion
                         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($nBSTR) 
@@ -405,11 +426,10 @@ Automatically set service account passwords on remote servers, based on the curr
 
                             #Restart service
                             Invoke-Command -ComputerName $Server {
-                            param($Service, $ServiceName)
 
-                                Restart-Service -DisplayName $Service.DisplayName -ErrorAction Stop                    
-                                Write-Output "$ServiceName restart successful." -OutVariable $Return
-                            } -ArgumentList $Service, $ServiceName
+                                Restart-Service -DisplayName $using:Service.DisplayName -ErrorAction Stop                    
+                                Write-Output "$using:ServiceName restart successful." -OutVariable $Return
+                            }
                         }
 
                         Catch {
@@ -439,13 +459,13 @@ Automatically set service account passwords on remote servers, based on the curr
 $FoundAccounts = Get-ServiceAccounts
 
 #Call function
-OutputDetected
+Detect-Output
 
 #Call function
-LoadKeePass
+Load-KeePass
 
 #Call function and store data
-$CurrentAccountData = Find-PasswordInKeePassDBUsingPassword
+$CurrentAccountData = Access-KeePassDatabase
 
 #Call function
 Set-AccountPassword
