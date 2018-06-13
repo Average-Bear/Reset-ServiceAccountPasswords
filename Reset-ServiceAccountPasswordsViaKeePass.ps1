@@ -3,7 +3,7 @@
     Resets Domain service account passwords to the current one from a KeePass database.
 
 .DESCRIPTION
-    This script provides the capability to change any domain service account password to the current associated password from KeePass, on all reachable servers/services.
+    This script provides the capability to change any domain service account passwords to the current associated password from KeePass, on all reachable servers/services.
 
 .EXAMPLES
     .\Reset-ServiceAccountPasswordsViaKeePass.ps1 Server01, Server02
@@ -98,15 +98,15 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                     won't currently work with out of date PowerShell on some servers; change to CIM if your entire environment is running POSH v3 or higher #>
                     $WMI = (Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
 
-                    #Filter out the standard service accounts
-                    Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and                  
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
-                    Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
-                    Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
+                        #Filter out the standard service accounts
+                        Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and                  
+                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
+                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
+                        Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
+                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
+                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
+                        Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
+                        Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
 
                     foreach($Obj in $WMI) {
                         
