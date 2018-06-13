@@ -41,7 +41,7 @@ param(
             
     #KeePass Database Path
     [Parameter(DontShow)]
-    $KeePassKDBX = "C:\Program Files (x86)\KeePass\EnterpriseServicesMASTER.kdbx", 
+    $KeePassKDBX = "C:\Program Files (x86)\KeePass\ITMaster.kdbx", 
     
     [Parameter(DontShow)]
     $i=0,
