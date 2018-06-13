@@ -1,6 +1,8 @@
 # Reset-ServiceAccountPasswords
 Before running, edit line(s) 40 and 44.
+
 Line 40 - Enter the directory in which the KeePass.exe and necessary .dll's reside. 
+
 Line 44 - Enter the path to your desired .KDBX file.
 
 Current goals: 
