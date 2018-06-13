@@ -99,13 +99,13 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                     $WMI = (Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
 
                     #Filter out the standard service accounts
-                    Where-Object -FilterScript {$_.StartName -ne "LocalSystem"}                  |
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"}  | 
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"}    |
-                    Where-Object -FilterScript {$_.StartName -ne "Local System"}                 |
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"}   |
-                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} |
-                    Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} |
+                    Where-Object -FilterScript {$_.StartName -ne "LocalSystem"} -and                  
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\NetworkService"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\LocalService"} -and    
+                    Where-Object -FilterScript {$_.StartName -ne "Local System"} -and 
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Local Service"} -and
+                    Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\Network Service"} -and
+                    Where-Object -FilterScript {$_.StartName -notlike "NT SERVICE\*"} -and
                     Where-Object -FilterScript {$_.StartName -ne "NT AUTHORITY\system"})
 
                     foreach($Obj in $WMI) {
