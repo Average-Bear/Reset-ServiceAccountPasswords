@@ -5,6 +5,8 @@ Line 40 - Enter the directory in which the KeePass.exe and necessary .dll's resi
 
 Line 44 - Enter the path to your desired .KDBX file.
 
+#This script requires WinRM to be turned on.
+
 Current goals: 
 - Do a search for KeePass.exe location, then feed the filepath instead of hardcoding a location; all required .DLL's should be located in the KeePass folder unless structure is different (for some reason).
 
