@@ -14,7 +14,8 @@
     Date: 2017-04-05
     Updated: 2018-06-13
         Version 1.2:
-        -Revised Split-Path output in order to reflect any potential Current User services.
+        - Revised Split-Path output in order to reflect any potential Current User services.
+        - Revised Where-Object filters to reduce execution times.
 
         -Adjusted main parameter locations for easier editing capabilties.
         Version 1.1:
@@ -40,7 +41,7 @@ param(
     $KeePassDirectory = "C:\Program Files (x86)\KeePass\",
             
     #KeePass Database Path
-    [Parameter(ValueFromPipeline=$true)]
+    [Parameter(DontShow)]
     $KeePassKDBX = $null
 )
 
@@ -72,7 +73,7 @@ if($KeePassKDBX -eq $null) {
     else {
 
         #Shows upon cancellation of Save Menu
-        Write-Host -ForegroundColor Yellow "Notice: No file(s) selected."
+        Write-Host -ForegroundColor Yellow "Notice: No KDBX file selected."
         Break
     }
 }
@@ -123,10 +124,7 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                     <# Query each computer
                     Note: Get-CIMInstance -ComputerName $Server -ClassName Win32_Service -ErrorAction SilentlyContinue 
                     won't currently work with out of date PowerShell on some servers; change to CIM if your entire environment is running POSH v3 or higher #>
-                    $WMI = Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue | 
-
-                    #Filter out the standard service accounts
-                    Where-Object -FilterScript {
+                    $WMI = (Get-WmiObject -ComputerName $Server -Class Win32_Service -ErrorAction SilentlyContinue).Where({
                     
                         $_.StartName -ne "LocalSystem" -and
                         $_.StartName -ne "NT AUTHORITY\NetworkService" -and
@@ -136,7 +134,7 @@ Retrieve all Non-Standard Service account information from specified servers. Re
                         $_.StartName -ne "NT AUTHORITY\Network Service" -and
                         $_.StartName -notlike "NT SERVICE\*" -and
                         $_.StartName -ne "NT AUTHORITY\system"
-                    }
+                    })
 
                     foreach($Obj in $WMI) {
                         
