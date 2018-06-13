@@ -51,8 +51,8 @@ if($KeePassKDBX -eq $null) {
 
     $Dialog = New-Object System.Windows.Forms.OpenFileDialog
     $Dialog.InitialDirectory = "$KeePassDirectory"
-    $Dialog.Title = "Select Installation File(s)"
-    $Dialog.Filter = "Installation Files (*.kdbx)| *.kdbx"        
+    $Dialog.Title = "Select KeePass Database File (KDBX)"
+    $Dialog.Filter = "KDBX File (*.kdbx)| *.kdbx"        
     $Dialog.Multiselect=$false
     $Result = $Dialog.ShowDialog()
 
