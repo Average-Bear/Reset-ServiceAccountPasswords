@@ -158,13 +158,16 @@ Retrieve all Non-Standard Service account information from specified servers. Re
     Get-Accounts | Receive-Job -Wait -AutoRemoveJob
 } 
 
-function Detect-Output {
+function Display-Output {
 
-    $TestPath = $FoundAccounts
+    param(
+    
+        $FoundAccounts
+    )
 
     Write-Host "`nService Accounts detected:"
 
-    if([String]::IsNullOrEmpty($TestPath)) {
+    if([String]::IsNullOrEmpty($FoundAccounts)) {
             
         Write-Host -ForegroundColor Yellow "`nNotice: No service accounts detected."
         Break
@@ -487,7 +490,7 @@ Automatically set service account passwords on remote servers, based on the curr
 $FoundAccounts = Get-ServiceAccounts
 
 #Call function
-Detect-Output
+Display-Output
 
 #Call function
 Load-KeePass
